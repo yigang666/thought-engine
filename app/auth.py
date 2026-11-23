@@ -16,7 +16,7 @@ import urllib.request
 
 from fastapi import Request
 
-from app.storage import data_dir
+from app.storage import data_dir, upsert_user
 
 logger = logging.getLogger("thoughtpage.auth")
 
@@ -80,9 +80,10 @@ def current_user(request: Request) -> dict[str, str] | None:
         return None
     email = str(raw.get("email") or "").strip().lower()
     name = str(raw.get("name") or "").strip() or email
-    if "@" not in email or len(email) > 320 or len(name) > 200:
+    user_id = str(raw.get("id") or raw.get("sub") or "").strip()
+    if "@" not in email or len(email) > 320 or len(name) > 200 or not user_id or len(user_id) > 200:
         return None
-    return {"email": email, "name": name, "sub": str(raw.get("sub") or "")[:200]}
+    return {"id": user_id[:200], "email": email, "name": name}
 
 
 def redirect_uri(request: Request) -> str:
@@ -139,7 +140,9 @@ def finish_sign_in(request: Request, code: str, state: str) -> dict[str, str]:
         raise AuthError("Google sign-in could not be confirmed. Start again from Upload.")
     if not code or len(code) > 2048:
         raise AuthError("Google sign-in did not return a usable code.")
-    user = fetch_google_identity(code, callback)
+    identity = fetch_google_identity(code, callback)
+    saved = upsert_user(user_id=identity["sub"], name=identity["name"], email=identity["email"])
+    user = {"id": saved.user_id, "name": saved.name, "email": saved.email}
     request.session["user"] = user
     return user
 

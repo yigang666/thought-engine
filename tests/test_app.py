@@ -171,6 +171,44 @@ def test_published_article_uses_reading_typography(client):
     assert "margin: 0 0 1.5em;" in sheet
 
 
+def test_another_signed_in_user_cannot_edit_the_article(client, monkeypatch):
+    from app.storage import get_user
+
+    ada = TestClient(create_app(), follow_redirects=False)
+    _sign_in(ada, monkeypatch, email="ada@gmail.com", name="Ada Lovelace")
+    published = ada.post(
+        "/upload",
+        data={"title": "Ada note", "text": "Written by Ada."},
+    )
+    assert published.status_code == 303, published.text
+    url = published.headers["location"]
+    stored = get_user("sub-ada@gmail.com")
+    assert stored is not None
+    assert stored.email == "ada@gmail.com"
+    assert stored.name == "Ada Lovelace"
+    grace = TestClient(create_app(), follow_redirects=False)
+    _sign_in(grace, monkeypatch, email="grace@gmail.com", name="Grace Hopper")
+    assert get_user("sub-grace@gmail.com") is not None
+    opened = grace.get(f"{url}/edit")
+    assert opened.status_code == 403
+    assert "Only the author can edit" in opened.text
+    assert 'name="text"' not in opened.text
+    assert "Written by Ada." not in opened.text
+    posted = grace.post(f"{url}/edit", data={"title": "Grace takes it", "text": "This is not Ada's."})
+    assert posted.status_code == 403
+    page = client.get(url)
+    assert page.status_code == 200
+    assert "Ada note" in page.text
+    assert "Written by Ada." in page.text
+    assert "Grace takes it" not in page.text
+    assert 'href="' + url + '/edit"' not in grace.get(url).text
+    assert 'href="' + url + '/edit"' in ada.get(url).text
+    saved = ada.post(f"{url}/edit", data={"title": "Ada revises", "text": "Still written by Ada."})
+    assert saved.status_code == 303, saved.text
+    assert "Ada revises" in client.get(url).text
+    assert "Still written by Ada." in client.get(url).text
+
+
 def test_anonymous_cannot_open_or_submit_the_editor(client, monkeypatch):
     author = TestClient(create_app(), follow_redirects=False)
     _sign_in(author, monkeypatch)

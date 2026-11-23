@@ -31,6 +31,7 @@ MAX_CHARS = 200_000
 MAX_TITLE = 200
 MAX_UPLOAD_BYTES = 1_048_576
 EDIT_SIGN_IN_REQUIRED = "Sign in with Google to edit an article."
+AUTHOR_ONLY = "Only the author can edit this article."
 APP_DIR = Path(__file__).resolve().parent
 
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -64,11 +65,14 @@ def create_app() -> FastAPI:
 
     @app.get("/articles/{article_id}/edit")
     def edit_article_form(request: Request, article_id: str):
-        if current_user(request) is None:
+        user = current_user(request)
+        if user is None:
             return _edit_forbidden(request)
         article = get_article(article_id)
         if article is None:
             return missing(request)
+        if article.author_id != user["id"]:
+            return _edit_forbidden(request, AUTHOR_ONLY)
         return _edit_page(request, article)
 
     @app.post("/articles/{article_id}/edit")
@@ -76,11 +80,14 @@ def create_app() -> FastAPI:
         blocked = reject_cross_origin(request)
         if blocked:
             return blocked
-        if current_user(request) is None:
+        user = current_user(request)
+        if user is None:
             return _edit_forbidden(request)
         article = get_article(article_id)
         if article is None:
             return missing(request)
+        if article.author_id != user["id"]:
+            return _edit_forbidden(request, AUTHOR_ONLY)
         try:
             chosen_title, content = await _article_fields(title, text, None)
         except ValueError as exc:
@@ -116,6 +123,7 @@ def create_app() -> FastAPI:
             content=content,
             author_name=user["name"],
             author_email=user["email"],
+            author_id=user["id"],
         )
         return RedirectResponse(f"/articles/{article.article_id}", status_code=303)
 
@@ -216,11 +224,11 @@ def _anonymous_upload_message() -> str:
     return SIGN_IN_REQUIRED
 
 
-def _edit_forbidden(request: Request):
+def _edit_forbidden(request: Request, message: str = EDIT_SIGN_IN_REQUIRED):
     return render(
         request,
         "error.html",
-        {"nav": "articles", "message": EDIT_SIGN_IN_REQUIRED},
+        {"nav": "articles", "message": message},
         status_code=403,
     )
 

@@ -61,16 +61,25 @@ def _db():
             updated_at TEXT NOT NULL,
             FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
         );
+        CREATE TABLE IF NOT EXISTS users (
+            user_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS articles (
             article_id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
             author_name TEXT NOT NULL,
             author_email TEXT NOT NULL,
+            author_id TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL
         );
         """
     )
+    article_columns = {row[1] for row in connection.execute("PRAGMA table_info(articles)")}
+    if "author_id" not in article_columns:
+        connection.execute("ALTER TABLE articles ADD COLUMN author_id TEXT NOT NULL DEFAULT ''")
     try:
         yield connection
         connection.commit()
@@ -304,29 +313,63 @@ def _stored_map(row: sqlite3.Row | None) -> StoredThoughtMap | None:
 
 
 @dataclass(frozen=True)
+class User:
+    user_id: str
+    name: str
+    email: str
+
+
+@dataclass(frozen=True)
 class Article:
     article_id: str
     title: str
     content: str
     author_name: str
     author_email: str
+    author_id: str
     created_at: str
 
 
-def save_article(*, title: str, content: str, author_name: str, author_email: str) -> Article:
+def upsert_user(*, user_id: str, name: str, email: str) -> User:
+    user = User(user_id=user_id, name=name, email=email)
+    with _db() as connection:
+        connection.execute(
+            """
+            INSERT INTO users (user_id, name, email) VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET name = excluded.name, email = excluded.email
+            """,
+            (user.user_id, user.name, user.email),
+        )
+    return user
+
+
+def get_user(user_id: str) -> User | None:
+    with _db() as connection:
+        row = connection.execute(
+            "SELECT user_id, name, email FROM users WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return User(user_id=row["user_id"], name=row["name"], email=row["email"])
+
+
+def save_article(*, title: str, content: str, author_name: str, author_email: str, author_id: str) -> Article:
     article = Article(
         article_id=str(uuid.uuid4()),
         title=title,
         content=content,
         author_name=author_name,
         author_email=author_email,
+        author_id=author_id,
         created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
     with _db() as connection:
         connection.execute(
             """
-            INSERT INTO articles (article_id, title, content, author_name, author_email, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO articles (
+                article_id, title, content, author_name, author_email, author_id, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 article.article_id,
@@ -334,6 +377,7 @@ def save_article(*, title: str, content: str, author_name: str, author_email: st
                 article.content,
                 article.author_name,
                 article.author_email,
+                article.author_id,
                 article.created_at,
             ),
         )
@@ -377,6 +421,7 @@ def _article(row: sqlite3.Row) -> Article:
         content=row["content"],
         author_name=row["author_name"],
         author_email=row["author_email"],
+        author_id=row["author_id"] if "author_id" in row.keys() else "",
         created_at=row["created_at"],
     )
 

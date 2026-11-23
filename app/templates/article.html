@@ -4,7 +4,7 @@
 <article class="reading">
   <h1>{{ article.title }}</h1>
   <p class="byline">{{ article.author_name }} · {{ article.created_at[:10] }}
-    {% if user %}<a href="/articles/{{ article.article_id }}/edit">Edit</a>{% endif %}
+    {% if user and user.id == article.author_id %}<a href="/articles/{{ article.article_id }}/edit">Edit</a>{% endif %}
   </p>
   <div class="article-body">{{ body_html | safe }}</div>
 </article>
