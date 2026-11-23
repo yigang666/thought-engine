@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ conversation.title }} · Thought Engine{% endblock %}
+{% block content %}
+<p class="crumb"><a href="/conversations">Conversations</a></p>
+<h1>{{ conversation.title }}</h1>
+<p class="meta">
+  Imported {{ conversation.created_at }}
+  · {{ conversation.source_type }}
+  · {{ conversation.messages|length }} messages
+  · {% if stored.extraction_status == 'succeeded' %}Extracted{% elif stored.extraction_status == 'failed' %}Extraction failed{% else %}Not extracted{% endif %}
+</p>
+{% if error %}
+  <div class="banner error" role="alert">{{ error }}</div>
+{% elif stored.extraction_error %}
+  <div class="banner error" role="alert">{{ stored.extraction_error }}</div>
+{% endif %}
+{% if conversation.parse_warnings %}
+  <div class="banner warn">
+    <p>Parsing warnings</p>
+    <ul>
+      {% for warning in conversation.parse_warnings %}
+        <li>{{ warning }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<section class="stack">
+  <h2>Extract</h2>
+  <p class="hint">Extraction calls the configured LLM. Without an API key it stops with an error and leaves this conversation in place. Article writing stays locked until you confirm the Thought Map, and this prototype does not write articles.</p>
+  {% if thought_map and thought_map.current.review_status.value == 'confirmed' %}
+    <p>This Thought Map is confirmed. Reopen it on the review page before extracting again.</p>
+    <p><a href="/thought-maps/{{ thought_map.current.thought_map_id }}">Review Thought Map</a></p>
+  {% else %}
+    <form method="post" action="/conversations/{{ conversation.conversation_id }}/extract" class="stack">
+      {% if thought_map %}
+        <label class="check">
+          <input type="checkbox" name="replace" value="yes">
+          Replace the current Thought Map. This discards edits on that map and stores a new extraction.
+        </label>
+        <p><a href="/thought-maps/{{ thought_map.current.thought_map_id }}">Review the current Thought Map</a> · {{ thought_map.current.review_status.value }}</p>
+      {% endif %}
+      <button type="submit">Extract Thought Map</button>
+    </form>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Messages</h2>
+  <ol class="messages">
+    {% for message in conversation.messages %}
+      <li class="message" id="m{{ message.sequence }}">
+        <div class="message-head">
+          <span class="badge speaker-{{ message.speaker.value }}">{{ message.speaker_label }}</span>
+          <span class="meta">{{ message.speaker.value }} · #{{ message.sequence }}</span>
+          {% if message.speaker_uncertain %}
+            <span class="badge origin-uncertain">Speaker uncertain</span>
+          {% endif %}
+        </div>
+        <pre>{{ message.content }}</pre>
+      </li>
+    {% endfor %}
+  </ol>
+</section>
+
+<details class="original">
+  <summary>Original source</summary>
+  <pre>{{ conversation.original_text }}</pre>
+</details>
+
+<form method="post" action="/conversations/{{ conversation.conversation_id }}/delete" class="danger-form" onsubmit="return confirm('Delete this conversation and its Thought Map from this machine?');">
+  <button type="submit" class="danger">Delete conversation</button>
+</form>
+{% endblock %}

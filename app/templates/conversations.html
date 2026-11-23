@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Conversations · Thought Engine{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Conversations</h1>
+  <a class="button" href="/import">Import</a>
+</div>
+{% if not conversations %}
+  <p class="empty">No conversations yet. Import a paste or a Markdown file.</p>
+{% else %}
+  <ul class="index">
+    {% for item in conversations %}
+      <li>
+        <a href="/conversations/{{ item.conversation_id }}">{{ item.title }}</a>
+        <p class="meta">
+          {{ item.message_count }} messages
+          · {{ item.source_type }}
+          · {% if item.extraction_status == 'succeeded' %}Extracted{% elif item.extraction_status == 'failed' %}Extraction failed{% else %}Not extracted{% endif %}
+          · {{ item.created_at }}
+        </p>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+{% endblock %}

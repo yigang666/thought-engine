@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}{{ conversation.title }} · Thought Map{% endblock %}
+{% block content %}
+<p class="crumb">
+  <a href="/thought-maps">Thought Maps</a>
+  · <a href="/conversations/{{ conversation.conversation_id }}">{{ conversation.title }}</a>
+</p>
+<h1>Thought Map</h1>
+<p class="meta">
+  <span class="badge status-{{ current.review_status.value }}">{{ current.review_status.value }}</span>
+  {% if current.provider %}· {{ current.provider }} / {{ current.model }}{% endif %}
+  {% if current.prompt_version %}· {{ current.prompt_version }}{% endif %}
+</p>
+<p class="review-links">
+  <a href="/thought-maps/{{ current.thought_map_id }}/review.md">Readable review</a>
+  · <a href="/thought-maps/{{ current.thought_map_id }}/review.json">JSON</a>
+</p>
+
+{% if current.review_status.value == 'confirmed' %}
+  <div class="banner ok">This Thought Map is confirmed. Confirmation is recorded. This prototype does not generate or publish articles.</div>
+{% else %}
+  <div class="banner lock">Article writing is locked until you confirm this Thought Map.</div>
+{% endif %}
+{% if error %}
+  <div class="banner error" role="alert">{{ error }}</div>
+{% endif %}
+
+<section class="legend" aria-label="Attribution categories">
+  <h2>Attribution</h2>
+  <ul>
+    {% for value, label in origin_choices %}
+      <li><span class="badge origin-{{ value }}">{{ label }}</span></li>
+    {% endfor %}
+  </ul>
+  <p class="hint">User original is kept only when a confident user message supports it. AI suggestions and inferences are not promoted to user original. Saving an edit returns a confirmed map to review.</p>
+</section>
+
+{% if current.system_adjustments %}
+  <section>
+    <h2>Extraction notes</h2>
+    <ul class="notes">
+      {% for note in current.system_adjustments %}
+        <li>{{ note }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
+
+<form method="post" action="/thought-maps/{{ current.thought_map_id }}" class="stack" id="save-form">
+  <section class="stack">
+    <label>
+      Central question
+      <textarea name="central_question" rows="3">{{ current.central_question }}</textarea>
+    </label>
+    <label>
+      Main thesis
+      <textarea name="main_thesis" rows="4">{{ current.main_thesis }}</textarea>
+    </label>
+  </section>
+
+  {% for type_value, type_label in type_order %}
+    <section class="thought-group">
+      <h2>{{ type_label }}</h2>
+      {% if type_value == 'question' %}
+        <label>
+          Open question summary
+          <textarea name="open_questions" rows="4">{% for question in current.open_questions %}{{ question }}
+{% endfor %}</textarea>
+        </label>
+        <p class="hint">The summary is a list. Each question item below still has its own attribution.</p>
+      {% endif %}
+      {% for item in grouped[type_value] %}
+        <article class="item">
+          <header class="item-head">
+            <span class="badge origin-{{ item.origin.value }}">{{ origin_labels[item.origin.value] }}</span>
+            {% if item.model_origin and item.model_origin.value != item.origin.value %}
+              <span class="meta">Extracted as {{ origin_labels[item.model_origin.value] }}</span>
+            {% endif %}
+            {% if item.origin_set_by == 'user' %}
+              <span class="meta">Edited by you</span>
+            {% endif %}
+            <span class="meta">Confidence {{ '%.0f'|format(item.confidence * 100) }}%</span>
+          </header>
+          <input type="hidden" name="item_id" value="{{ item.item_id }}">
+          <label>
+            Thought
+            <textarea name="content" rows="4">{{ item.content }}</textarea>
+          </label>
+          <div class="split">
+            <label>
+              Type
+              <select name="item_type">
+                {% for value, label in type_choices %}
+                  <option value="{{ value }}" {% if item.type.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>
+              Attribution
+              <select name="origin">
+                {% for value, label in origin_choices %}
+                  <option value="{{ value }}" {% if item.origin.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <label>
+            Notes
+            <input type="text" name="notes" value="{{ item.notes }}">
+          </label>
+          <fieldset>
+            <legend>Source messages</legend>
+            {% for message in conversation.messages %}
+              <label class="source">
+                <input type="checkbox" name="sources_{{ item.item_id }}" value="{{ message.message_id }}" {% if message.message_id in item.source_message_ids %}checked{% endif %}>
+                <span>#{{ message.sequence }} {{ message.speaker.value }}{% if message.speaker_uncertain %} · speaker uncertain{% endif %}</span>
+                <span class="excerpt">{{ message.content }}</span>
+              </label>
+            {% endfor %}
+          </fieldset>
+          <label class="check">
+            <input type="checkbox" name="remove_item" value="{{ item.item_id }}">
+            Remove this thought on save
+          </label>
+        </article>
+      {% else %}
+        {% if type_value != 'question' %}
+          <p class="empty">None yet.</p>
+        {% endif %}
+      {% endfor %}
+    </section>
+  {% endfor %}
+
+  <section class="stack">
+    <h2>Reasoning chain</h2>
+    {% for step in current.reasoning_chain %}
+      <label>
+        Step {{ step.step }}
+        <input type="hidden" name="reasoning_step" value="{{ step.step }}">
+        <textarea name="reasoning_description" rows="3">{{ step.description }}</textarea>
+      </label>
+    {% else %}
+      <p class="empty">None yet.</p>
+    {% endfor %}
+    <label>
+      Add a reasoning step
+      <textarea name="new_reasoning" rows="3" placeholder="Leave blank to keep the chain as it is."></textarea>
+    </label>
+  </section>
+
+  <section>
+    <label>
+      Contradictions
+      <textarea name="contradictions" rows="4">{% for item in current.contradictions %}{{ item }}
+{% endfor %}</textarea>
+    </label>
+    <p class="hint">One contradiction per line. Leave a reasoning step blank to remove it.</p>
+  </section>
+
+  <button type="submit">Save edits</button>
+</form>
+
+<section class="stack">
+  <h2>Add a missing thought</h2>
+  <form method="post" action="/thought-maps/{{ current.thought_map_id }}/items" class="stack">
+    <label>
+      Thought
+      <textarea name="new_content" rows="4" required></textarea>
+    </label>
+    <div class="split">
+      <label>
+        Type
+        <select name="new_type">
+          {% for value, label in type_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Attribution
+        <select name="new_origin">
+          {% for value, label in origin_choices %}
+            <option value="{{ value }}" {% if value == 'uncertain' %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <label>
+      Notes
+      <input type="text" name="new_notes">
+    </label>
+    <fieldset>
+      <legend>Source messages</legend>
+      {% for message in conversation.messages %}
+        <label class="source">
+          <input type="checkbox" name="new_sources" value="{{ message.message_id }}">
+          <span>#{{ message.sequence }} {{ message.speaker.value }}{% if message.speaker_uncertain %} · speaker uncertain{% endif %}</span>
+          <span class="excerpt">{{ message.content }}</span>
+        </label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit">Add thought</button>
+  </form>
+</section>
+
+<section class="confirm-panel">
+  {% if current.review_status.value != 'confirmed' %}
+    <h2>Confirm</h2>
+    <p>Save edits first. Confirming records this map as the source you accept. It does not generate or publish an article.</p>
+    <form method="post" action="/thought-maps/{{ current.thought_map_id }}/confirm">
+      <button type="submit">Confirm Thought Map</button>
+    </form>
+  {% else %}
+    <form method="post" action="/thought-maps/{{ current.thought_map_id }}/reopen">
+      <button type="submit" class="secondary">Reopen for editing</button>
+    </form>
+  {% endif %}
+</section>
+
+<details class="original">
+  <summary>Original extraction, before your edits</summary>
+  <p class="hint">This copy stays as first extracted. Edits above do not rewrite it.</p>
+  <p><strong>Central question.</strong> {{ original.central_question or "None" }}</p>
+  <p><strong>Main thesis.</strong> {{ original.main_thesis or "None" }}</p>
+  <ol>
+    {% for item in original.thought_items %}
+      <li>
+        <span class="badge origin-{{ item.origin.value }}">{{ origin_labels[item.origin.value] }}</span>
+        {{ type_labels[item.type.value] }} — {{ item.content }}
+      </li>
+    {% else %}
+      <li>No thought items.</li>
+    {% endfor %}
+  </ol>
+</details>
+{% endblock %}

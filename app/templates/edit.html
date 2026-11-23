@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Edit · {{ article.title }} · Thought Engine{% endblock %}
+{% block content %}
+<h1>Edit article</h1>
+{% if error %}
+<div class="banner error" role="alert">{{ error }}</div>
+{% endif %}
+<form class="stack" method="post" action="/articles/{{ article.article_id }}/edit">
+  <label>Title
+    <input type="text" name="title" value="{{ title_value }}" maxlength="200" required>
+  </label>
+  <label>Article
+    <textarea name="text" rows="16">{{ text_value }}</textarea>
+  </label>
+  <button type="submit">Save</button>
+</form>
+<p><a href="/articles/{{ article.article_id }}">Back to the article</a></p>
+{% endblock %}

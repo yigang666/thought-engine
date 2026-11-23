@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Import · Thought Engine{% endblock %}
+{% block content %}
+<h1>Import a conversation</h1>
+<p class="lede">Paste a transcript or upload Markdown. The original is stored privately on this machine and is not published.</p>
+{% if error %}
+  <div class="banner error" role="alert">{{ error }}</div>
+{% endif %}
+<form method="post" action="/import" enctype="multipart/form-data" class="stack">
+  <label>
+    Title
+    <input type="text" name="title" maxlength="200" value="{{ title_value }}" placeholder="Optional. A filename is used for uploads.">
+  </label>
+  <label>
+    Paste
+    <textarea name="text" rows="14" placeholder="User: I think…"></textarea>
+  </label>
+  <label>
+    Markdown file
+    <input type="file" name="file" accept=".md,.markdown,text/markdown">
+  </label>
+  <button type="submit">Import</button>
+</form>
+<section class="note">
+  <h2>Speaker labels</h2>
+  <p>Turns can start with <code>User:</code>, <code>Assistant:</code>, <code>Human:</code>, <code>AI:</code>, <code>ChatGPT:</code>, <code>Claude:</code>, Markdown bold, a heading, or the Chinese labels 用户 and 助手. <code>You:</code> counts as the user when an assistant label is also present.</p>
+  <p>If labels are missing or are names this prototype does not know, every speaker is marked uncertain instead of being guessed.</p>
+</section>
+{% endblock %}

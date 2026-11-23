@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Thought Maps · Thought Engine{% endblock %}
+{% block content %}
+<h1>Thought Maps</h1>
+{% if not thought_maps %}
+  <p class="empty">No Thought Maps yet. Open a conversation and extract one.</p>
+{% else %}
+  <ul class="index">
+    {% for item in thought_maps %}
+      <li>
+        <a href="/thought-maps/{{ item.thought_map_id }}">{{ item.title }}</a>
+        <p class="meta">
+          <span class="badge status-{{ item.review_status }}">{{ item.review_status }}</span>
+          · {{ item.item_count }} thoughts
+          · {{ item.updated_at }}
+        </p>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+{% endblock %}

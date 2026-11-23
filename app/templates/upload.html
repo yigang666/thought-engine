@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Upload · Thought Engine{% endblock %}
+{% block content %}
+<h1>Upload</h1>
+{% if error %}
+<div class="banner error" role="alert">{{ error }}</div>
+{% endif %}
+{% if user %}
+<p class="hint">This publishes the title and the writing for anyone to read. It does not run thought extraction.</p>
+<form class="stack" method="post" action="/upload" enctype="multipart/form-data">
+  <label>Title
+    <input type="text" name="title" value="{{ title_value }}" maxlength="200" required>
+  </label>
+  <label>Article
+    <textarea name="text" rows="16">{{ text_value }}</textarea>
+  </label>
+  <label>Or a Markdown file
+    <input type="file" name="file" accept=".md,.markdown,text/markdown">
+  </label>
+  <button type="submit">Publish</button>
+</form>
+{% else %}
+<p>Sign in with Google to upload an article or a Markdown file.</p>
+<p><a class="button" href="/auth/google">Sign in with Google</a></p>
+{% endif %}
+{% endblock %}

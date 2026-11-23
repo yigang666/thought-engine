@@ -1,0 +1,14 @@
+.env
+client_secret_*.json
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+*.db
+*.sqlite
+data/*
+!data/.gitkeep
+.DS_Store
